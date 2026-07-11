@@ -13,6 +13,7 @@ from bs4 import BeautifulSoup
 from playwright.async_api import async_playwright
 
 from .base import BaseScraper, ScrapedProduct
+from browser_utils import create_stealth_context, create_stealth_page
 
 logger = logging.getLogger(__name__)
 
@@ -98,9 +99,10 @@ class AmazonScraper(BaseScraper):
         asin = asin_match.group(1) if asin_match else url.split("/")[-1].split("?")[0]
         url = f"https://www.amazon.in/dp/{asin}"
 
-        async with async_playwright() as p:
-            context = await self._make_browser_context(p)
-            page = await context.new_page()
+        logger.info(f"[Amazon] Falling back to Playwright for {url}")
+        async with async_playwright() as pw:
+            browser, context = await create_stealth_context(pw)
+            page = await create_stealth_page(context)
 
             # Block images/fonts to speed up
             await page.route("**/*.{png,jpg,jpeg,gif,webp,svg,woff,woff2,ttf}",

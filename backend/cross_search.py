@@ -24,6 +24,7 @@ from urllib.parse import quote_plus
 import httpx
 from bs4 import BeautifulSoup
 from playwright.async_api import async_playwright, Browser, BrowserContext
+from browser_utils import create_stealth_context, create_stealth_page
 
 logger = logging.getLogger(__name__)
 
@@ -94,13 +95,8 @@ async def find_amazon_url(query: str) -> list[str]:
     url = f"https://www.amazon.in/s?k={quote_plus(query)}&i=electronics"
     try:
         async with async_playwright() as pw:
-            browser = await pw.chromium.launch(headless=True, args=["--no-sandbox"])
-            ctx = await browser.new_context(
-                user_agent=UA,
-                locale="en-IN",
-                viewport={"width": 1366, "height": 768},
-            )
-            page = await ctx.new_page()
+            browser, ctx = await create_stealth_context(pw)
+            page = await create_stealth_page(ctx)
             await page.goto(url, wait_until="domcontentloaded", timeout=25000)
             await page.wait_for_timeout(3000)
             html = await page.content()
@@ -128,13 +124,8 @@ async def find_flipkart_url(query: str) -> list[str]:
     url = f"https://www.flipkart.com/search?q={quote_plus(query)}&otracker=search"
     try:
         async with async_playwright() as pw:
-            browser = await pw.chromium.launch(headless=True, args=["--no-sandbox"])
-            ctx = await browser.new_context(
-                user_agent=UA,
-                locale="en-IN",
-                viewport={"width": 1366, "height": 768},
-            )
-            page = await ctx.new_page()
+            browser, ctx = await create_stealth_context(pw)
+            page = await create_stealth_page(ctx)
             await page.goto(url, wait_until="domcontentloaded", timeout=25000)
             await page.wait_for_timeout(3000)
             html = await page.content()

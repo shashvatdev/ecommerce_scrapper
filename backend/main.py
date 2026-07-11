@@ -16,6 +16,7 @@ from scrapers.amazon import AmazonScraper
 from scrapers.flipkart import FlipkartScraper
 from cross_search import find_amazon_url, find_flipkart_url, build_search_query
 from llm_matcher import find_best_match_via_llm
+from cache import get_cached_result, save_to_cache
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s — %(message)s")
@@ -90,6 +91,7 @@ def serialize(scraped) -> dict:
 
 class CompareRequest(BaseModel):
     url: str
+    force_refresh: bool = False
 
 
 @app.get("/health")
@@ -104,6 +106,13 @@ async def compare(req: CompareRequest):
 
     if platform == "unknown":
         raise HTTPException(400, "Only Amazon and Flipkart URLs are supported")
+        
+    # Check cache first
+    if not req.force_refresh:
+        cached_data = get_cached_result(url)
+        if cached_data:
+            cached_data["cached"] = True
+            return cached_data
 
     canonical = clean_url(url, platform)
     other_platform = "flipkart" if platform == "amazon" else "amazon"
@@ -176,5 +185,10 @@ async def compare(req: CompareRequest):
     else:
         results["cheaper_store"] = None
         results["price_difference"] = None
+        
+    results["cached"] = False
+    
+    # Save to cache
+    save_to_cache(url, results)
 
     return results

@@ -9,22 +9,21 @@ document.addEventListener("DOMContentLoaded", () => {
   const loadingState = document.getElementById("loading-state");
   const compareSection = document.getElementById("compare-section");
 
-  form.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const url = urlInput.value.trim();
-    if (!url) return;
+  const forceRefreshBtn = document.getElementById("force-refresh-btn");
 
+  const doSearch = async (url, forceRefresh = false) => {
     // Reset UI states
     errorDiv.hidden = true;
     compareSection.hidden = true;
     loadingState.hidden = false;
     compareBtn.disabled = true;
+    forceRefreshBtn.disabled = true;
 
     try {
       const response = await fetch(`${API_BASE}/compare`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url })
+        body: JSON.stringify({ url, force_refresh: forceRefresh })
       });
 
       if (!response.ok) {
@@ -40,7 +39,19 @@ document.addEventListener("DOMContentLoaded", () => {
       loadingState.hidden = true;
     } finally {
       compareBtn.disabled = false;
+      forceRefreshBtn.disabled = false;
     }
+  };
+
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const url = urlInput.value.trim();
+    if (url) doSearch(url, false);
+  });
+
+  forceRefreshBtn.addEventListener("click", () => {
+    const url = urlInput.value.trim();
+    if (url) doSearch(url, true);
   });
 });
 
@@ -52,6 +63,15 @@ function renderComparison(data) {
 
   const amazonCol = document.getElementById("amazon-body");
   const flipkartCol = document.getElementById("flipkart-body");
+
+  const cachedIndicator = document.getElementById("cached-indicator");
+
+  // Cached indicator
+  if (data.cached) {
+    cachedIndicator.hidden = false;
+  } else {
+    cachedIndicator.hidden = true;
+  }
 
   // Title rendering
   const title = data.amazon.title || data.flipkart.title || "Compared Product";

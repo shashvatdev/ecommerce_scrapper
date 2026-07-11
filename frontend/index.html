@@ -45,6 +45,9 @@
           <span class="btn-text">Compare</span>
           <span class="btn-spinner" hidden></span>
         </button>
+        <button class="search-btn force-refresh-btn" type="button" id="force-refresh-btn" title="Bypass cache and force a new scrape" style="margin-left: 8px; background: transparent; color: var(--text); border: 1px solid var(--border);">
+          <span class="btn-text">↻</span>
+        </button>
       </div>
       <div class="search-error" id="search-error" hidden></div>
     </form>
@@ -72,9 +75,8 @@
 
     <!-- Product Title Row -->
     <div class="product-header" id="product-header"></div>
-
-    <!-- Savings Banner -->
-    <div class="savings-banner" id="savings-banner" hidden></div>
+  <div id="cached-indicator" hidden style="text-align: center; color: #10b981; font-size: 13px; margin-bottom: 16px; font-weight: 500;">⚡ Served instantly from cache</div>
+  <div class="savings-banner" id="savings-banner" hidden></div>
 
     <!-- Two Column Comparison -->
     <div class="compare-grid">

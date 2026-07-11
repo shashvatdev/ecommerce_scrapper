@@ -1,133 +1,223 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>PriceLens — Amazon vs Flipkart</title>
-<meta name="description" content="Instant side-by-side price comparison between Amazon and Flipkart. Paste any product URL to compare."/>
-<link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
-<link rel="stylesheet" href="style.css"/>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PriceLens | Smart Cross-Marketplace Comparison</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- GSAP -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollToPlugin.min.js"></script>
+    
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<!-- Header -->
-<header class="header">
-  <div class="header-inner">
-    <div class="logo">
-      <span class="logo-mark"></span>
-      <span class="logo-text">PriceLens</span>
+    <!-- Animated Ambient Background -->
+    <div class="ambient-bg">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+        <div class="orb orb-3"></div>
+        <div class="noise-overlay"></div>
     </div>
-  </div>
-</header>
 
-<!-- Hero Search -->
-<section class="hero">
-  <div class="hero-inner">
-    <h1 class="hero-title">Amazon vs Flipkart.<br>Instantly.</h1>
-    <p class="hero-sub">Paste any Amazon or Flipkart product URL — we'll compare prices, ratings, and reviews side by side in seconds.</p>
-
-    <form class="search-form" id="search-form" autocomplete="off">
-      <div class="search-wrap">
-        <div class="search-icon">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 17H7a5 5 0 0 1 0-10h3"/><path d="M14 7h3a5 5 0 0 1 0 10h-3"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+    <!-- Navigation -->
+    <nav class="nav">
+        <div class="nav-container">
+            <div class="logo">
+                <div class="logo-dot"></div>
+                <span>PriceLens</span>
+            </div>
+            <div class="nav-links">
+                <a href="#how-it-works">How it works</a>
+                <a href="#about">About AI</a>
+            </div>
         </div>
-        <input
-          id="url-input"
-          class="search-input"
-          type="url"
-          placeholder="Paste Amazon or Flipkart product URL..."
-          spellcheck="false"
-          required
-        />
-        <button class="search-btn" type="submit" id="compare-btn">
-          <span class="btn-text">Compare</span>
-          <span class="btn-spinner" hidden></span>
-        </button>
-        <button class="search-btn force-refresh-btn" type="button" id="force-refresh-btn" title="Bypass cache and force a new scrape" style="margin-left: 8px; background: transparent; color: var(--text); border: 1px solid var(--border);">
-          <span class="btn-text">↻</span>
-        </button>
-      </div>
-      <div class="search-error" id="search-error" hidden></div>
-    </form>
+    </nav>
 
-    <div class="platform-badges">
-      <span class="pb pb-amz">Amazon.in</span>
-      <span class="pb-sep">+</span>
-      <span class="pb pb-fk">Flipkart</span>
-    </div>
-  </div>
-</section>
+    <!-- Main Content -->
+    <main class="main-content">
+        
+        <!-- Hero Section -->
+        <section class="hero-section">
+            <h1 class="hero-title">
+                <span class="hero-line">Amazon vs Flipkart.</span>
+                <span class="hero-line highlight">Instantly.</span>
+            </h1>
+            <p class="hero-subtitle">
+                Paste any product URL and instantly discover the better deal across marketplaces with AI-powered matching.
+            </p>
 
-<!-- Loading State -->
-<div class="loading-state" id="loading-state" hidden>
-  <div class="loading-inner">
-    <div class="pulse-ring"></div>
-    <p class="loading-text" id="loading-text">Fetching product data...</p>
-    <p class="loading-sub" id="loading-sub">Scraping both platforms via Playwright</p>
-  </div>
-</div>
+            <form id="search-form" class="search-box">
+                <div class="search-input-wrapper">
+                    <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 17H7a5 5 0 0 1 0-10h3"/><path d="M14 7h3a5 5 0 0 1 0 10h-3"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+                    <input type="url" id="url-input" placeholder="Paste Amazon or Flipkart product URL..." required autocomplete="off" spellcheck="false">
+                </div>
+                <button type="submit" id="compare-btn" class="magnetic-btn">
+                    <span>Compare</span>
+                </button>
+                <button type="button" id="force-refresh-btn" class="refresh-btn magnetic-btn" title="Force live scrape">
+                    <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+                </button>
+            </form>
+            
+            <div class="supported-platforms">
+                <div class="platform-badge">Amazon.in</div>
+                <div class="platform-badge">Flipkart</div>
+            </div>
+        </section>
 
-<!-- Compare Result -->
-<section class="compare-section" id="compare-section" hidden>
-  <div class="compare-inner">
+        <!-- Loading State -->
+        <section id="loading-state" class="loading-state" hidden>
+            <div class="loader-ring"></div>
+            <p>AI is analyzing the market...</p>
+        </section>
 
-    <!-- Product Title Row -->
-    <div class="product-header" id="product-header"></div>
-  <div id="cached-indicator" hidden style="text-align: center; color: #10b981; font-size: 13px; margin-bottom: 16px; font-weight: 500;">⚡ Served instantly from cache</div>
-  <div class="savings-banner" id="savings-banner" hidden></div>
+        <!-- Results Section -->
+        <section id="results-section" class="results-section" hidden>
+            
+            <div class="savings-banner glass-panel" id="savings-banner">
+                <div class="savings-content">
+                    <span class="savings-label">You save</span>
+                    <span class="savings-amount">₹<span id="savings-value">0</span></span>
+                </div>
+                <div class="savings-glow"></div>
+            </div>
 
-    <!-- Two Column Comparison -->
-    <div class="compare-grid">
+            <div class="product-header" id="product-header">
+                <!-- Dynamically injected -->
+            </div>
+            
+            <div id="cached-indicator" class="cached-indicator" hidden>
+                <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+                Served instantly from cache
+            </div>
 
-      <!-- Amazon Column -->
-      <div class="platform-col" id="amazon-col">
-        <div class="platform-header amz-header">
-          <svg class="platform-logo" viewBox="0 0 100 30" width="80" height="24">
-            <text y="22" font-family="Arial" font-weight="bold" font-size="20" fill="#FF9900">amazon</text>
-            <text x="52" y="26" font-family="Arial" font-size="10" fill="#FF9900">.in</text>
-          </svg>
-        </div>
-        <div class="platform-body" id="amazon-body"></div>
-      </div>
+            <div class="cards-grid">
+                <!-- Amazon Card -->
+                <div class="store-card glass-panel" id="card-amazon">
+                    <div class="card-glow"></div>
+                    <div class="store-logo amazon-color">amazon</div>
+                    <div class="product-image-container">
+                        <img id="img-amazon" src="" alt="Product">
+                    </div>
+                    <div class="price-row">
+                        <div class="current-price">₹<span id="price-amazon" class="counter">0</span></div>
+                        <div class="mrp" id="mrp-amazon"></div>
+                    </div>
+                    <div class="stock-badge" id="stock-amazon"></div>
+                    <div class="meta-details">
+                        <div class="meta-row">
+                            <span class="meta-label">Seller</span>
+                            <span class="meta-value" id="seller-amazon"></span>
+                        </div>
+                        <div class="meta-row">
+                            <span class="meta-label">Rating</span>
+                            <span class="meta-value rating-val" id="rating-amazon"></span>
+                        </div>
+                    </div>
+                    <a href="#" id="link-amazon" target="_blank" class="buy-btn">View on Amazon</a>
+                </div>
 
-      <!-- Divider -->
-      <div class="col-divider">
-        <div class="divider-line"></div>
-        <div class="vs-badge">VS</div>
-        <div class="divider-line"></div>
-      </div>
+                <!-- Flipkart Card -->
+                <div class="store-card glass-panel" id="card-flipkart">
+                    <div class="card-glow"></div>
+                    <div class="store-logo flipkart-color">Flipkart</div>
+                    <div class="product-image-container">
+                        <img id="img-flipkart" src="" alt="Product">
+                    </div>
+                    <div class="price-row">
+                        <div class="current-price">₹<span id="price-flipkart" class="counter">0</span></div>
+                        <div class="mrp" id="mrp-flipkart"></div>
+                    </div>
+                    <div class="stock-badge" id="stock-flipkart"></div>
+                    <div class="meta-details">
+                        <div class="meta-row">
+                            <span class="meta-label">Seller</span>
+                            <span class="meta-value" id="seller-flipkart"></span>
+                        </div>
+                        <div class="meta-row">
+                            <span class="meta-label">Rating</span>
+                            <span class="meta-value rating-val" id="rating-flipkart"></span>
+                        </div>
+                    </div>
+                    <a href="#" id="link-flipkart" target="_blank" class="buy-btn">View on Flipkart</a>
+                </div>
+            </div>
 
-      <!-- Flipkart Column -->
-      <div class="platform-col" id="flipkart-col">
-        <div class="platform-header fk-header">
-          <svg class="platform-logo" viewBox="0 0 100 30" width="88" height="24">
-            <text y="22" font-family="Arial" font-weight="bold" font-size="20" fill="#2874F0">Flipkart</text>
-          </svg>
-        </div>
-        <div class="platform-body" id="flipkart-body"></div>
-      </div>
+            <!-- AI Insights -->
+            <div class="ai-insights glass-panel">
+                <div class="ai-header">
+                    <div class="ai-icon">✨</div>
+                    <h3>AI Match Confidence</h3>
+                </div>
+                <div class="ai-body">
+                    <div class="confidence-bar-bg">
+                        <div class="confidence-bar-fill" id="ai-confidence-fill"></div>
+                    </div>
+                    <div class="ai-reasoning" id="ai-reasoning">
+                        Analyzing match parity...
+                    </div>
+                </div>
+            </div>
+            
+            <!-- History Section (UI Only) -->
+            <div class="history-section glass-panel mt-24">
+                <div class="section-header">
+                    <h3>Price History (Last 30 Days)</h3>
+                    <span class="badge">Coming Soon</span>
+                </div>
+                <div class="dummy-chart">
+                    <!-- SVG Chart simulation -->
+                    <svg viewBox="0 0 800 200" preserveAspectRatio="none" class="chart-line">
+                        <path d="M0,150 C100,140 200,160 300,100 C400,40 500,80 600,120 C700,160 800,90 800,90" fill="none" stroke="url(#gradient)" stroke-width="4"></path>
+                        <defs>
+                            <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                <stop offset="0%" stop-color="#3b82f6" />
+                                <stop offset="100%" stop-color="#8b5cf6" />
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                    <div class="chart-glow"></div>
+                </div>
+            </div>
 
-    </div>
+        </section>
 
-    <!-- Specs Comparison Table -->
-    <div class="specs-section" id="specs-section" hidden>
-      <h3 class="specs-title">Specifications</h3>
-      <div class="specs-table-wrap">
-        <table class="specs-table" id="specs-table"></table>
-      </div>
-    </div>
+        <!-- Trust Metrics -->
+        <section class="trust-section">
+            <div class="trust-grid">
+                <div class="trust-metric">
+                    <div class="metric-val" id="metric-products">1.2M+</div>
+                    <div class="metric-label">Products Analyzed</div>
+                </div>
+                <div class="trust-metric">
+                    <div class="metric-val" id="metric-savings">₹45M+</div>
+                    <div class="metric-label">Money Saved</div>
+                </div>
+                <div class="trust-metric">
+                    <div class="metric-val" id="metric-speed">< 2s</div>
+                    <div class="metric-label">Average Response</div>
+                </div>
+            </div>
+        </section>
+        
+    </main>
 
-    <!-- Reviews Section -->
-    <div class="reviews-section" id="reviews-section" hidden>
-      <h3 class="specs-title">Customer Reviews</h3>
-      <div class="reviews-grid" id="reviews-grid"></div>
-    </div>
+    <!-- Footer -->
+    <footer class="footer">
+        <p>© 2026 PriceLens. All rights reserved. Designed for the web.</p>
+    </footer>
 
-  </div>
-</section>
+    <!-- Error Toast -->
+    <div id="error-toast" class="error-toast glass-panel"></div>
 
-<script src="app.js"></script>
+    <script src="app.js"></script>
 </body>
 </html>

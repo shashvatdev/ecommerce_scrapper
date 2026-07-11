@@ -1,216 +1,131 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>EcomScraper — Amazon & Flipkart Dashboard</title>
-  <meta name="description" content="Scrape and track product prices from Amazon and Flipkart in real time." />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
-  <link rel="stylesheet" href="style.css" />
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>PriceLens — Amazon vs Flipkart</title>
+<meta name="description" content="Instant side-by-side price comparison between Amazon and Flipkart. Paste any product URL to compare."/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="style.css"/>
 </head>
 <body>
 
-  <!-- ── Sidebar ─────────────────────────────────────────────────── -->
-  <aside class="sidebar" id="sidebar">
-    <div class="sidebar-logo">
-      <span class="logo-icon">🛒</span>
-      <span class="logo-text">EcomScraper</span>
-    </div>
-
-    <nav class="sidebar-nav">
-      <a href="#" class="nav-item active" id="nav-dashboard" onclick="showView('dashboard')">
-        <span class="nav-icon">📊</span> Dashboard
-      </a>
-      <a href="#" class="nav-item" id="nav-scrape" onclick="showView('scrape')">
-        <span class="nav-icon">🔍</span> Scrape Product
-      </a>
-      <a href="#" class="nav-item" id="nav-products" onclick="showView('products'); loadProducts()">
-        <span class="nav-icon">📦</span> All Products
-      </a>
-      <a href="#" class="nav-item" id="nav-export" onclick="showView('export')">
-        <span class="nav-icon">📥</span> Export Data
-      </a>
-    </nav>
-
-    <div class="sidebar-footer">
-      <div class="status-indicator" id="status-dot"></div>
-      <span id="status-text">Connecting...</span>
-    </div>
-  </aside>
-
-  <!-- ── Main Content ────────────────────────────────────────────── -->
-  <main class="main-content">
-
-    <!-- Header -->
-    <header class="topbar">
-      <div class="topbar-left">
-        <h1 class="page-title" id="page-title">Dashboard</h1>
-        <p class="page-subtitle" id="page-subtitle">Overview of all scraped products</p>
-      </div>
-      <div class="topbar-right">
-        <span class="badge-amazon">Amazon</span>
-        <span class="badge-flipkart">Flipkart</span>
-      </div>
-    </header>
-
-    <!-- ── VIEW: Dashboard ──────────────────────────────────────── -->
-    <section class="view active" id="view-dashboard">
-
-      <!-- Stats Cards -->
-      <div class="stats-grid">
-        <div class="stat-card" id="stat-total">
-          <div class="stat-icon">📦</div>
-          <div class="stat-info">
-            <span class="stat-value" id="stat-total-val">—</span>
-            <span class="stat-label">Total Products</span>
-          </div>
-        </div>
-        <div class="stat-card" id="stat-amazon">
-          <div class="stat-icon">🟠</div>
-          <div class="stat-info">
-            <span class="stat-value" id="stat-amazon-val">—</span>
-            <span class="stat-label">Amazon</span>
-          </div>
-        </div>
-        <div class="stat-card" id="stat-flipkart">
-          <div class="stat-icon">🔵</div>
-          <div class="stat-info">
-            <span class="stat-value" id="stat-flipkart-val">—</span>
-            <span class="stat-label">Flipkart</span>
-          </div>
-        </div>
-        <div class="stat-card" id="stat-avg">
-          <div class="stat-icon">💰</div>
-          <div class="stat-info">
-            <span class="stat-value" id="stat-avg-val">—</span>
-            <span class="stat-label">Avg Price (₹)</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Recent Products -->
-      <div class="section-header">
-        <h2>Recently Scraped</h2>
-        <button class="btn btn-ghost" onclick="showView('products'); loadProducts()">View All →</button>
-      </div>
-      <div class="products-grid" id="dashboard-products">
-        <div class="empty-state">No products yet. <a href="#" onclick="showView('scrape')">Scrape one!</a></div>
-      </div>
-    </section>
-
-    <!-- ── VIEW: Scrape ──────────────────────────────────────────── -->
-    <section class="view" id="view-scrape">
-      <div class="scrape-container">
-        <div class="scrape-card glass">
-          <h2 class="scrape-title">Scrape a Product</h2>
-          <p class="scrape-desc">Paste an Amazon or Flipkart product URL, or enter an ASIN / Product ID.</p>
-
-          <!-- Platform Toggle -->
-          <div class="platform-toggle" id="platform-toggle">
-            <button class="toggle-btn active" id="toggle-amazon" onclick="selectPlatform('amazon')">
-              🟠 Amazon
-            </button>
-            <button class="toggle-btn" id="toggle-flipkart" onclick="selectPlatform('flipkart')">
-              🔵 Flipkart
-            </button>
-            <button class="toggle-btn" id="toggle-both" onclick="selectPlatform('both')">
-              ⚡ Both
-            </button>
-          </div>
-
-          <!-- Input -->
-          <div class="input-group">
-            <input
-              type="text"
-              id="scrape-input"
-              class="scrape-input"
-              placeholder="https://www.amazon.in/dp/B08N5WRWNW  or  B08N5WRWNW"
-              autofocus
-            />
-            <button class="btn btn-primary" id="scrape-btn" onclick="startScrape()">
-              <span id="scrape-btn-text">🔍 Scrape</span>
-            </button>
-          </div>
-
-          <!-- Status -->
-          <div class="scrape-status" id="scrape-status" style="display:none">
-            <div class="loader"></div>
-            <span id="scrape-status-msg">Launching browser...</span>
-          </div>
-
-          <!-- Result -->
-          <div id="scrape-result"></div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ── VIEW: All Products ────────────────────────────────────── -->
-    <section class="view" id="view-products">
-      <!-- Filters -->
-      <div class="filters-bar">
-        <div class="filter-group">
-          <select class="filter-select" id="filter-platform" onchange="loadProducts()">
-            <option value="">All Platforms</option>
-            <option value="amazon">Amazon</option>
-            <option value="flipkart">Flipkart</option>
-          </select>
-        </div>
-        <div class="filter-group">
-          <input type="text" class="filter-input" id="filter-search" placeholder="Search by title..." oninput="filterProducts()" />
-        </div>
-        <div class="filter-group sort-group">
-          <select class="filter-select" id="sort-by" onchange="sortProducts()">
-            <option value="newest">Newest First</option>
-            <option value="price-asc">Price: Low → High</option>
-            <option value="price-desc">Price: High → Low</option>
-            <option value="rating">Highest Rated</option>
-            <option value="discount">Biggest Discount</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="products-grid" id="all-products-grid">
-        <div class="empty-state">Loading...</div>
-      </div>
-    </section>
-
-    <!-- ── VIEW: Export ──────────────────────────────────────────── -->
-    <section class="view" id="view-export">
-      <div class="export-container">
-        <div class="export-card glass" onclick="downloadExport('csv')">
-          <div class="export-icon">📄</div>
-          <h3>CSV Export</h3>
-          <p>Download all products as a comma-separated file. Best for spreadsheets.</p>
-          <button class="btn btn-primary">Download CSV</button>
-        </div>
-        <div class="export-card glass" onclick="downloadExport('json')">
-          <div class="export-icon">📋</div>
-          <h3>JSON Export</h3>
-          <p>Download structured JSON. Best for developers and API integrations.</p>
-          <button class="btn btn-primary">Download JSON</button>
-        </div>
-        <div class="export-card glass" onclick="downloadExport('excel')">
-          <div class="export-icon">📊</div>
-          <h3>Excel Export</h3>
-          <p>Download a formatted Excel (.xlsx) file. Best for business reports.</p>
-          <button class="btn btn-primary">Download Excel</button>
-        </div>
-      </div>
-    </section>
-
-  </main>
-
-  <!-- ── Product Detail Modal ──────────────────────────────────── -->
-  <div class="modal-overlay" id="modal-overlay" onclick="closeModal()">
-    <div class="modal glass" id="product-modal" onclick="event.stopPropagation()">
-      <button class="modal-close" onclick="closeModal()">✕</button>
-      <div id="modal-content"></div>
+<!-- Header -->
+<header class="header">
+  <div class="header-inner">
+    <div class="logo">
+      <span class="logo-mark"></span>
+      <span class="logo-text">PriceLens</span>
     </div>
   </div>
+</header>
 
-  <script src="app.js"></script>
+<!-- Hero Search -->
+<section class="hero">
+  <div class="hero-inner">
+    <h1 class="hero-title">Amazon vs Flipkart.<br>Instantly.</h1>
+    <p class="hero-sub">Paste any Amazon or Flipkart product URL — we'll compare prices, ratings, and reviews side by side in seconds.</p>
+
+    <form class="search-form" id="search-form" autocomplete="off">
+      <div class="search-wrap">
+        <div class="search-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 17H7a5 5 0 0 1 0-10h3"/><path d="M14 7h3a5 5 0 0 1 0 10h-3"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+        </div>
+        <input
+          id="url-input"
+          class="search-input"
+          type="url"
+          placeholder="Paste Amazon or Flipkart product URL..."
+          spellcheck="false"
+          required
+        />
+        <button class="search-btn" type="submit" id="compare-btn">
+          <span class="btn-text">Compare</span>
+          <span class="btn-spinner" hidden></span>
+        </button>
+      </div>
+      <div class="search-error" id="search-error" hidden></div>
+    </form>
+
+    <div class="platform-badges">
+      <span class="pb pb-amz">Amazon.in</span>
+      <span class="pb-sep">+</span>
+      <span class="pb pb-fk">Flipkart</span>
+    </div>
+  </div>
+</section>
+
+<!-- Loading State -->
+<div class="loading-state" id="loading-state" hidden>
+  <div class="loading-inner">
+    <div class="pulse-ring"></div>
+    <p class="loading-text" id="loading-text">Fetching product data...</p>
+    <p class="loading-sub" id="loading-sub">Scraping both platforms via Playwright</p>
+  </div>
+</div>
+
+<!-- Compare Result -->
+<section class="compare-section" id="compare-section" hidden>
+  <div class="compare-inner">
+
+    <!-- Product Title Row -->
+    <div class="product-header" id="product-header"></div>
+
+    <!-- Savings Banner -->
+    <div class="savings-banner" id="savings-banner" hidden></div>
+
+    <!-- Two Column Comparison -->
+    <div class="compare-grid">
+
+      <!-- Amazon Column -->
+      <div class="platform-col" id="amazon-col">
+        <div class="platform-header amz-header">
+          <svg class="platform-logo" viewBox="0 0 100 30" width="80" height="24">
+            <text y="22" font-family="Arial" font-weight="bold" font-size="20" fill="#FF9900">amazon</text>
+            <text x="52" y="26" font-family="Arial" font-size="10" fill="#FF9900">.in</text>
+          </svg>
+        </div>
+        <div class="platform-body" id="amazon-body"></div>
+      </div>
+
+      <!-- Divider -->
+      <div class="col-divider">
+        <div class="divider-line"></div>
+        <div class="vs-badge">VS</div>
+        <div class="divider-line"></div>
+      </div>
+
+      <!-- Flipkart Column -->
+      <div class="platform-col" id="flipkart-col">
+        <div class="platform-header fk-header">
+          <svg class="platform-logo" viewBox="0 0 100 30" width="88" height="24">
+            <text y="22" font-family="Arial" font-weight="bold" font-size="20" fill="#2874F0">Flipkart</text>
+          </svg>
+        </div>
+        <div class="platform-body" id="flipkart-body"></div>
+      </div>
+
+    </div>
+
+    <!-- Specs Comparison Table -->
+    <div class="specs-section" id="specs-section" hidden>
+      <h3 class="specs-title">Specifications</h3>
+      <div class="specs-table-wrap">
+        <table class="specs-table" id="specs-table"></table>
+      </div>
+    </div>
+
+    <!-- Reviews Section -->
+    <div class="reviews-section" id="reviews-section" hidden>
+      <h3 class="specs-title">Customer Reviews</h3>
+      <div class="reviews-grid" id="reviews-grid"></div>
+    </div>
+
+  </div>
+</section>
+
+<script src="app.js"></script>
 </body>
 </html>

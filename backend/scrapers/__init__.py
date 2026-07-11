@@ -1,4 +1,19 @@
-from .amazon import scrape_amazon
-from .flipkart import scrape_flipkart
+from .amazon import AmazonScraper
+from .flipkart import FlipkartScraper
+from .croma import CromaScraper
+from .reliance import RelianceScraper
+from .vijaysales import VijaysSalesScraper
+from .base import ScrapedProduct
 
-__all__ = ["scrape_amazon", "scrape_flipkart"]
+SCRAPERS = {
+    "amazon":     AmazonScraper(),
+    "flipkart":   FlipkartScraper(),
+    "croma":      CromaScraper(),
+    "reliance":   RelianceScraper(),
+    "vijaysales": VijaysSalesScraper(),
+}
+
+__all__ = [
+    "AmazonScraper", "FlipkartScraper", "CromaScraper",
+    "RelianceScraper", "VijaysSalesScraper", "ScrapedProduct", "SCRAPERS",
+]

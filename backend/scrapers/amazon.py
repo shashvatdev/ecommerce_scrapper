@@ -1,7 +1,6 @@
 """
-Amazon Scraper — uses async Playwright for real browser rendering.
-Each data field is extracted in its own function so a single selector
-change only requires updating one function.
+Amazon Scraper — extends BaseScraper.
+JSON-LD first (fast), Playwright fallback.
 """
 
 import re
@@ -9,296 +8,169 @@ import asyncio
 import random
 import logging
 from typing import Optional
-from playwright.async_api import async_playwright, Page
+
+from bs4 import BeautifulSoup
+from playwright.async_api import async_playwright
+
+from .base import BaseScraper, ScrapedProduct
 
 logger = logging.getLogger(__name__)
 
-# ── User-Agent Pool ──────────────────────────────────────────────────────────
-USER_AGENTS = [
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) "
-    "Gecko/20100101 Firefox/125.0",
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-]
 
+class AmazonScraper(BaseScraper):
+    platform = "amazon"
 
-# ── URL Helpers ───────────────────────────────────────────────────────────────
-def asin_to_url(asin: str) -> str:
-    return f"https://www.amazon.in/dp/{asin.strip()}"
+    def _parse_json_ld(self, data: dict, url: str, soup: BeautifulSoup) -> ScrapedProduct:
+        title = data.get("name", "")
+        brand = data.get("brand", {}).get("name") if isinstance(data.get("brand"), dict) else data.get("brand")
+        image_url = data.get("image") or (data.get("image", [None])[0] if isinstance(data.get("image"), list) else None)
+        gtin = data.get("gtin13") or data.get("gtin8") or data.get("gtin")
 
+        # Offers
+        offers = data.get("offers", {})
+        if isinstance(offers, list):
+            offers = offers[0] if offers else {}
+        price = None
+        mrp = None
+        seller = None
+        availability = "Unknown"
+        if offers:
+            try:
+                price = float(str(offers.get("price", "0")).replace(",", ""))
+            except Exception:
+                pass
+            mrp_str = offers.get("priceValidUntil") or offers.get("highPrice")
+            if mrp_str:
+                try:
+                    mrp = float(str(mrp_str).replace(",", ""))
+                except Exception:
+                    pass
+            seller_info = offers.get("seller", {})
+            seller = seller_info.get("name") if isinstance(seller_info, dict) else seller_info
+            avail = offers.get("availability", "")
+            if "InStock" in avail or "InStoreOnly" in avail:
+                availability = "In Stock"
+            elif "OutOfStock" in avail:
+                availability = "Out of Stock"
 
-def normalize_url(raw: str) -> str:
-    """Accept full URL or bare ASIN and return a clean Amazon product URL."""
-    raw = raw.strip()
-    if raw.startswith("http"):
-        # Extract ASIN from URL if present
-        m = re.search(r"/dp/([A-Z0-9]{10})", raw)
-        if m:
-            return asin_to_url(m.group(1))
-        return raw
-    # Treat as bare ASIN
-    if re.match(r"^[A-Z0-9]{10}$", raw):
-        return asin_to_url(raw)
-    return raw
+        rating = None
+        review_count = None
+        agg = data.get("aggregateRating", {})
+        if agg:
+            try:
+                rating = float(agg.get("ratingValue", 0))
+                review_count = int(str(agg.get("reviewCount", "0")).replace(",", ""))
+            except Exception:
+                pass
 
+        # Specs from additionalProperty
+        specs = {}
+        for prop in data.get("additionalProperty", []):
+            if prop.get("name"):
+                specs[prop["name"]] = prop.get("value", "")
 
-def extract_asin_from_url(url: str) -> str:
-    m = re.search(r"/dp/([A-Z0-9]{10})", url)
-    return m.group(1) if m else url.split("/")[-1].split("?")[0]
+        asin = re.search(r"/dp/([A-Z0-9]{10})", url)
+        platform_id = asin.group(1) if asin else url.split("/")[-1]
 
+        model_number = data.get("mpn") or self._extract_model_number(specs, title)
 
-# ── Field Extractors (one function per field) ─────────────────────────────────
-async def extract_title(page: Page) -> Optional[str]:
-    try:
-        el = await page.query_selector("#productTitle")
-        if el:
-            return (await el.inner_text()).strip()
-    except Exception:
-        pass
-    return None
+        return ScrapedProduct(
+            platform="amazon",
+            platform_id=platform_id,
+            title=title,
+            brand=brand,
+            model_number=model_number,
+            gtin=gtin,
+            price=price if price and price > 0 else None,
+            mrp=mrp if mrp and mrp > 0 else None,
+            seller=seller,
+            availability=availability,
+            image_url=image_url if isinstance(image_url, str) else None,
+            rating=rating,
+            review_count=review_count,
+            product_url=f"https://www.amazon.in/dp/{platform_id}",
+            specs=specs,
+        )
 
+    async def _scrape_playwright(self, url: str) -> ScrapedProduct:
+        # Normalize URL
+        asin_match = re.search(r"/dp/([A-Z0-9]{10})", url)
+        asin = asin_match.group(1) if asin_match else url.split("/")[-1].split("?")[0]
+        url = f"https://www.amazon.in/dp/{asin}"
 
-async def extract_brand(page: Page) -> Optional[str]:
-    selectors = [
-        "#bylineInfo",
-        "#brand",
-        "a#bylineInfo",
-        ".po-brand .po-break-word",
-    ]
-    for sel in selectors:
-        try:
-            el = await page.query_selector(sel)
-            if el:
-                text = (await el.inner_text()).strip()
-                text = re.sub(r"^(Visit the |Brand:\s*)", "", text, flags=re.I)
-                return text.replace(" Store", "").strip()
-        except Exception:
-            continue
-    return None
-
-
-async def extract_price(page: Page) -> Optional[float]:
-    selectors = [
-        ".priceToPay .a-price-whole",
-        "#priceblock_ourprice",
-        "#priceblock_dealprice",
-        ".a-price.a-text-price.a-size-medium.apexPriceToPay .a-offscreen",
-        "#corePrice_feature_div .a-price-whole",
-        ".reinventPricePriceToPayMargin .a-price-whole",
-    ]
-    for sel in selectors:
-        try:
-            el = await page.query_selector(sel)
-            if el:
-                text = (await el.inner_text()).strip()
-                price = float(re.sub(r"[^\d.]", "", text))
-                if price > 0:
-                    return price
-        except Exception:
-            continue
-    return None
-
-
-async def extract_mrp(page: Page) -> Optional[float]:
-    selectors = [
-        ".basisPrice .a-price .a-offscreen",
-        "#listPrice",
-        ".priceBlockStrikePriceString",
-        ".a-text-strike",
-        "#corePriceDisplay_desktop_feature_div .a-text-price .a-offscreen",
-    ]
-    for sel in selectors:
-        try:
-            el = await page.query_selector(sel)
-            if el:
-                text = (await el.inner_text()).strip()
-                mrp = float(re.sub(r"[^\d.]", "", text))
-                if mrp > 0:
-                    return mrp
-        except Exception:
-            continue
-    return None
-
-
-async def extract_rating(page: Page) -> Optional[float]:
-    selectors = [
-        "#acrPopover",
-        "span[data-hook='rating-out-of-text']",
-        ".a-icon-star .a-icon-alt",
-    ]
-    for sel in selectors:
-        try:
-            el = await page.query_selector(sel)
-            if el:
-                text = (await el.get_attribute("title") or await el.inner_text()).strip()
-                m = re.search(r"(\d+\.?\d*)", text)
-                if m:
-                    return float(m.group(1))
-        except Exception:
-            continue
-    return None
-
-
-async def extract_review_count(page: Page) -> Optional[int]:
-    selectors = [
-        "#acrCustomerReviewText",
-        "span[data-hook='total-review-count']",
-    ]
-    for sel in selectors:
-        try:
-            el = await page.query_selector(sel)
-            if el:
-                text = (await el.inner_text()).strip()
-                m = re.search(r"([\d,]+)", text)
-                if m:
-                    return int(m.group(1).replace(",", ""))
-        except Exception:
-            continue
-    return None
-
-
-async def extract_seller(page: Page) -> Optional[str]:
-    selectors = [
-        "#sellerProfileTriggerId",
-        "#merchant-info a",
-        "#tabular-buybox .tabular-buybox-text[tabular-attribute-name='Sold by'] span",
-    ]
-    for sel in selectors:
-        try:
-            el = await page.query_selector(sel)
-            if el:
-                return (await el.inner_text()).strip()
-        except Exception:
-            continue
-    return None
-
-
-async def extract_availability(page: Page) -> Optional[str]:
-    selectors = [
-        "#availability span",
-        "#outOfStock .a-color-price",
-        "#availability",
-    ]
-    for sel in selectors:
-        try:
-            el = await page.query_selector(sel)
-            if el:
-                text = (await el.inner_text()).strip()
-                if text:
-                    return text
-        except Exception:
-            continue
-    return "Unknown"
-
-
-async def extract_image(page: Page) -> Optional[str]:
-    selectors = [
-        "#landingImage",
-        "#imgBlkFront",
-        "#main-image",
-        ".a-dynamic-image",
-    ]
-    for sel in selectors:
-        try:
-            el = await page.query_selector(sel)
-            if el:
-                src = await el.get_attribute("src") or await el.get_attribute("data-old-hires")
-                if src and src.startswith("http"):
-                    return src
-        except Exception:
-            continue
-    return None
-
-
-# ── Main Scraper ──────────────────────────────────────────────────────────────
-async def scrape_amazon(input_str: str, input_type: str = "url") -> dict:
-    """
-    Scrape a single Amazon product.
-    input_str: URL or ASIN
-    input_type: 'url' | 'asin'
-    Returns a dict with product data.
-    """
-    url = normalize_url(input_str)
-    asin = extract_asin_from_url(url)
-
-    logger.info(f"[Amazon] Scraping ASIN={asin} url={url}")
-
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
-        try:
-            context = await browser.new_context(
-                user_agent=random.choice(USER_AGENTS),
-                viewport={
-                    "width": random.randint(1280, 1920),
-                    "height": random.randint(720, 1080),
-                },
-                locale="en-IN",
-                timezone_id="Asia/Kolkata",
-            )
-
+        async with async_playwright() as p:
+            context = await self._make_browser_context(p)
             page = await context.new_page()
 
-            # Block images/fonts to speed up scraping
-            await page.route(
-                "**/*.{png,jpg,jpeg,gif,webp,svg,woff,woff2,ttf}",
-                lambda route: route.abort()
-            )
+            # Block images/fonts to speed up
+            await page.route("**/*.{png,jpg,jpeg,gif,webp,svg,woff,woff2,ttf}",
+                             lambda route: route.abort())
 
-            # Navigate with retry
-            for attempt in range(3):
-                try:
-                    await page.goto(url, wait_until="domcontentloaded", timeout=30000)
-                    await asyncio.sleep(random.uniform(1.5, 3.0))
-                    break
-                except Exception as e:
-                    if attempt == 2:
-                        raise e
-                    await asyncio.sleep(2 ** attempt)
-
-            # Human-like scroll
+            await self._goto_with_retry(page, url)
             await page.evaluate("window.scrollBy(0, window.innerHeight * 0.5)")
-            await asyncio.sleep(random.uniform(0.5, 1.5))
+            await asyncio.sleep(random.uniform(0.5, 1.2))
 
-            # Extract all fields
-            title        = await extract_title(page)
-            brand        = await extract_brand(page)
-            price        = await extract_price(page)
-            mrp          = await extract_mrp(page)
-            rating       = await extract_rating(page)
-            review_count = await extract_review_count(page)
-            seller       = await extract_seller(page)
-            availability = await extract_availability(page)
-            image_url    = await extract_image(page)
+            title = await self._get_text(page, ["#productTitle"])
+            brand = await self._get_text(page, ["#bylineInfo", "#brand", ".po-brand .po-break-word"])
+            if brand:
+                brand = re.sub(r"^(Visit the |Brand:\s*)", "", brand, flags=re.I).replace(" Store", "").strip()
 
-            # Re-enable images so the actual image URL is available
+            price_text = await self._get_text(page, [
+                ".priceToPay .a-price-whole",
+                "#priceblock_ourprice",
+                "#corePrice_feature_div .a-price-whole",
+                ".reinventPricePriceToPayMargin .a-price-whole",
+            ])
+            mrp_text = await self._get_text(page, [
+                ".basisPrice .a-price .a-offscreen",
+                "#listPrice",
+                ".priceBlockStrikePriceString",
+                "#corePriceDisplay_desktop_feature_div .a-text-price .a-offscreen",
+            ])
+            rating_text = await self._get_attr(page, ["#acrPopover"], "title") or \
+                          await self._get_text(page, ["#acrPopover"])
+            review_text = await self._get_text(page, ["#acrCustomerReviewText"])
+            seller = await self._get_text(page, [
+                "#sellerProfileTriggerId",
+                "#merchant-info a",
+            ])
+            avail_text = await self._get_text(page, ["#availability span", "#availability"])
+
+            # Re-enable images to get real image URL
             await page.unroute("**/*.{png,jpg,jpeg,gif,webp,svg,woff,woff2,ttf}")
-            if not image_url:
-                image_url = await extract_image(page)
+            image_url = await self._get_attr(page, [
+                "#landingImage", "#imgBlkFront", ".a-dynamic-image"
+            ], "src")
 
-            # Calculate discount
-            discount = None
-            if price and mrp and mrp > price:
-                discount = round(((mrp - price) / mrp) * 100, 1)
+            # Specs from product details table
+            specs = {}
+            try:
+                rows = await page.query_selector_all("#productDetails_techSpec_section_1 tr, #prodDetails tr")
+                for row in rows:
+                    cells = await row.query_selector_all("td, th")
+                    if len(cells) >= 2:
+                        k = (await cells[0].inner_text()).strip()
+                        v = (await cells[1].inner_text()).strip()
+                        if k and v:
+                            specs[k] = v
+            except Exception:
+                pass
 
-            return {
-                "platform":     "amazon",
-                "product_id":   asin,
-                "title":        title,
-                "brand":        brand,
-                "price":        price,
-                "mrp":          mrp,
-                "discount":     discount,
-                "rating":       rating,
-                "review_count": review_count,
-                "seller":       seller,
-                "availability": availability,
-                "image_url":    image_url,
-                "product_url":  url,
-            }
+            await context.browser.close()
 
-        finally:
-            await browser.close()
+            return ScrapedProduct(
+                platform="amazon",
+                platform_id=asin,
+                title=(title or "").strip(),
+                brand=brand,
+                model_number=self._extract_model_number(specs, title or ""),
+                price=self._parse_price(price_text),
+                mrp=self._parse_price(mrp_text),
+                rating=self._parse_rating(rating_text),
+                review_count=self._parse_int(review_text),
+                seller=seller,
+                availability="In Stock" if avail_text and "stock" in avail_text.lower() else (avail_text or "Unknown"),
+                image_url=image_url,
+                product_url=url,
+                specs=specs,
+            )

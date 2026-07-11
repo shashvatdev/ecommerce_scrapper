@@ -1,66 +1,121 @@
-from pydantic import BaseModel
+"""
+Pydantic Models — request/response schemas for FastAPI.
+"""
+
+from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime
 
 
-class ScrapeRequest(BaseModel):
-    input: str          # URL or ASIN/product ID
-    type: str = "url"   # "url" | "asin" | "id"
+# ── Requests ──────────────────────────────────────────────────────────────────
+
+class IngestURLRequest(BaseModel):
+    url: str = Field(..., description="Product URL from any supported platform")
 
 
-class PricePoint(BaseModel):
+class SearchRequest(BaseModel):
+    q: str = Field(..., description="Search query or product name")
+
+
+class AlertRequest(BaseModel):
+    canonical_id: int
+    target_price: float
+    email: str
+    platform: Optional[str] = None
+
+
+# ── Responses ─────────────────────────────────────────────────────────────────
+
+class PriceEntry(BaseModel):
+    platform: str
+    price: Optional[float]
+    mrp: Optional[float]
+    discount: Optional[float]
+    seller: Optional[str]
+    availability: str
+    product_url: str
+    last_scraped: Optional[str]
+
+    class Config:
+        from_attributes = True
+
+
+class PriceHistoryPoint(BaseModel):
     price: float
-    recorded_at: datetime
-
-    class Config:
-        from_attributes = True
+    recorded_at: str
+    platform: Optional[str] = None
 
 
-class Product(BaseModel):
-    id:           int
-    platform:     str
-    product_id:   str
-    title:        Optional[str]
-    brand:        Optional[str]
-    price:        Optional[float]
-    mrp:          Optional[float]
-    discount:     Optional[float]
-    rating:       Optional[float]
-    review_count: Optional[int]
-    seller:       Optional[str]
-    availability: Optional[str]
-    image_url:    Optional[str]
-    product_url:  str
-    scraped_at:   datetime
-    last_updated: datetime
-    price_history: list[PricePoint] = []
-
-    class Config:
-        from_attributes = True
+class AISummary(BaseModel):
+    pros: list[str] = []
+    cons: list[str] = []
+    verdict: str = ""
+    best_for: list[str] = []
+    avoid_if: list[str] = []
+    ai_score: float = 0.0
+    value_rating: str = ""
+    summary_one_line: str = ""
+    generated_at: Optional[str] = None
 
 
-class ProductListItem(BaseModel):
-    id:           int
-    platform:     str
-    product_id:   str
-    title:        Optional[str]
-    brand:        Optional[str]
-    price:        Optional[float]
-    mrp:          Optional[float]
-    discount:     Optional[float]
-    rating:       Optional[float]
-    review_count: Optional[int]
-    availability: Optional[str]
-    image_url:    Optional[str]
-    product_url:  str
-    scraped_at:   datetime
-
-    class Config:
-        from_attributes = True
+class CanonicalProduct(BaseModel):
+    id: int
+    brand: str
+    model_name: str
+    model_number: Optional[str]
+    category: Optional[str]
+    image_url: Optional[str]
+    created_at: str
 
 
-class ScrapeResponse(BaseModel):
-    success:  bool
-    message:  str
-    product:  Optional[Product] = None
-    error:    Optional[str] = None
+class CompareResponse(BaseModel):
+    canonical: CanonicalProduct
+    stores: list[PriceEntry]
+    best_price: Optional[PriceEntry]
+    highest_price: Optional[PriceEntry]
+    savings: Optional[float]             # difference between highest and lowest
+    price_history: list[PriceHistoryPoint]
+    ai_summary: Optional[AISummary]
+
+
+class SearchResult(BaseModel):
+    id: int
+    brand: str
+    model_name: str
+    category: Optional[str]
+    image_url: Optional[str]
+    best_price: Optional[float]
+    best_platform: Optional[str]
+    store_count: int
+    ai_score: Optional[float]
+
+
+class SearchResponse(BaseModel):
+    query: str
+    results: list[SearchResult]
+    total: int
+    ai_hint: Optional[str] = None
+
+
+class AlertResponse(BaseModel):
+    id: int
+    canonical_id: int
+    target_price: float
+    email: str
+    platform: Optional[str]
+    triggered: bool
+    created_at: str
+
+
+class StatsResponse(BaseModel):
+    total_products: int
+    total_listings: int
+    platform_counts: dict
+    average_price: float
+    pending_alerts: int
+
+
+class MetricsResponse(BaseModel):
+    crawler: dict
+    queue_depth: int
+    db_stats: dict

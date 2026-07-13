@@ -177,7 +177,7 @@ function renderComparison(data) {
 
     // Amazon
     document.getElementById("img-amazon").src = data.amazon.image_url || "";
-    document.getElementById("price-amazon").textContent = data.amazon.price || "0";
+    document.getElementById("price-amazon").textContent = data.amazon.price ? data.amazon.price : "N/A";
     document.getElementById("price-amazon").dataset.val = data.amazon.price || 0;
     
     const amzMrp = data.amazon.mrp ? `₹${data.amazon.mrp}` : "";
@@ -198,7 +198,7 @@ function renderComparison(data) {
 
     // Flipkart
     document.getElementById("img-flipkart").src = data.flipkart.image_url || "";
-    document.getElementById("price-flipkart").textContent = data.flipkart.price || "0";
+    document.getElementById("price-flipkart").textContent = data.flipkart.price ? data.flipkart.price : "N/A";
     document.getElementById("price-flipkart").dataset.val = data.flipkart.price || 0;
     
     const fkMrp = data.flipkart.mrp ? `₹${data.flipkart.mrp}` : "";

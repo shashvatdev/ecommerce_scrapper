@@ -18,7 +18,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Optional
 
-import httpx
+from curl_cffi.requests import AsyncSession
 from bs4 import BeautifulSoup
 from playwright.async_api import async_playwright, Page, BrowserContext
 
@@ -101,15 +101,19 @@ class BaseScraper(ABC):
         return await self._scrape_playwright(url)
 
     async def _try_json_ld(self, url: str) -> Optional[ScrapedProduct]:
-        """Fetch page with httpx, parse JSON-LD structured data."""
-        async with httpx.AsyncClient(
-            headers=self._headers(),
-            follow_redirects=True,
-            timeout=15.0,
-        ) as client:
-            r = await client.get(url)
-            r.raise_for_status()
-            soup = BeautifulSoup(r.text, "html.parser")
+        """Fetch page with curl_cffi, parse JSON-LD structured data."""
+        try:
+            async with AsyncSession(impersonate="chrome110") as client:
+                r = await client.get(
+                    url,
+                    headers=self._headers(),
+                    timeout=15.0,
+                )
+                r.raise_for_status()
+                soup = BeautifulSoup(r.text, "html.parser")
+        except Exception as e:
+            logger.debug(f"[{self.platform}] Request failed: {e}")
+            return None
 
             # Look for JSON-LD Product schema
             for tag in soup.find_all("script", type="application/ld+json"):

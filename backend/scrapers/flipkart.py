@@ -22,8 +22,27 @@ class FlipkartScraper(BaseScraper):
     platform = "flipkart"
 
     def _parse_json_ld(self, data: dict, url: str, soup: BeautifulSoup) -> ScrapedProduct:
-        # Fallback to direct page scraping as Flipkart obfuscates JSON-LD or skips price
-        return self._parse_soup(soup, url)
+        pass
+
+    async def _try_json_ld(self, url: str) -> Optional[ScrapedProduct]:
+        # Override to parse DOM directly via curl_cffi since Flipkart removed JSON-LD
+        from curl_cffi.requests import AsyncSession
+        try:
+            async with AsyncSession(impersonate="chrome110") as client:
+                r = await client.get(url, headers=self._headers(), timeout=15.0)
+                r.raise_for_status()
+                soup = BeautifulSoup(r.text, "lxml")
+                
+                # Check if we got redirected or hit a captcha
+                if "Buy Products Online" in (soup.title.string if soup.title else ""):
+                    return None
+                    
+                product = self._parse_soup(soup, url)
+                if product.title:
+                    return product
+        except Exception as e:
+            logger.debug(f"[Flipkart] curl_cffi failed: {e}")
+        return None
 
     def _parse_soup(self, soup: BeautifulSoup, url: str) -> ScrapedProduct:
         html = str(soup)
@@ -97,12 +116,33 @@ class FlipkartScraper(BaseScraper):
             availability = "Out of Stock"
 
         rating = None
+        # Look for div containing X.X★ or just the class
         rating_el = soup.select_one("div.XQDdHH, div._3LWZlK")
         if rating_el:
             try:
                 rating = float(rating_el.get_text(strip=True))
             except Exception:
                 pass
+        
+        if not rating:
+            for div in soup.find_all("div"):
+                text = div.get_text(strip=True)
+                if re.match(r'^[1-5]\.\d$', text):
+                    rating = float(text)
+                    break
+        
+        seller = None
+        seller_el = soup.select_one("#sellerName span span, #sellerName span")
+        if seller_el:
+            seller = seller_el.get_text(strip=True)
+        else:
+            # Fallback for seller
+            for span in soup.find_all("span"):
+                if span.string and "Seller" in span.string and "Become a Seller" not in span.string:
+                    parent_text = span.parent.get_text(strip=True)
+                    if len(parent_text) < 50:
+                        seller = parent_text.replace("Seller", "").strip()
+                        break
 
         return ScrapedProduct(
             platform="flipkart",
@@ -115,6 +155,7 @@ class FlipkartScraper(BaseScraper):
             availability=availability,
             image_url=image_url,
             rating=rating,
+            seller=seller,
             product_url=url,
             specs={},
             reviews_snippet=[]
@@ -126,6 +167,23 @@ class FlipkartScraper(BaseScraper):
             page = await context.new_page()
             await self._goto_with_retry(page, url)
             await asyncio.sleep(3.0)
+            
+            # Extract additional data via JS before parsing soup
+            seller = await page.evaluate('''() => {
+                let sellerEl = document.querySelector("#sellerName span span");
+                if (!sellerEl) sellerEl = document.querySelector("#sellerName span");
+                return sellerEl ? sellerEl.innerText : null;
+            }''')
+            
+            rating = await page.evaluate('''() => {
+                let ratingEl = document.querySelector("div.XQDdHH, div._3LWZlK");
+                return ratingEl ? ratingEl.innerText : null;
+            }''')
+            
             html = await page.content()
             await context.browser.close()
-            return self._parse_soup(BeautifulSoup(html, "lxml"), url)
+            
+            product = self._parse_soup(BeautifulSoup(html, "lxml"), url)
+            if seller: product.seller = seller
+            if rating: product.rating = self._parse_rating(rating)
+            return product
